@@ -21,7 +21,6 @@ import (
 	"errors"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -213,11 +212,7 @@ func (r *NamespacedPvReconciler) DeleteNamespacedPV(ctx context.Context, namespa
 					return err
 				}
 				r.Get(ctx, types.NamespacedName{Name: targetPv.Name}, targetPv)
-				cond := metav1.Preconditions{
-					UID:             &targetPv.UID,
-					ResourceVersion: &targetPv.ResourceVersion,
-				}
-				if err := r.Delete(ctx, targetPv, &client.DeleteOptions{Preconditions: &cond}); err != nil {
+				if err := r.Delete(ctx, targetPv); err != nil {
 					logger.Error(err, "unable to delete NamespacedPv")
 					return err
 				}

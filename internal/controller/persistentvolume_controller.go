@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"strconv"
 
 	namespacedpvv1 "github.com/homirun/namespaced-pv-controller/api/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -77,13 +78,25 @@ func (r *PersistentVolumeReconciler) DeletePV(ctx context.Context, pv *corev1.Pe
 	logger := log.FromContext(ctx)
 
 	if !pv.GetDeletionTimestamp().IsZero() {
-		if !controllerutil.ContainsFinalizer(pv, finalizerName) && pv.Annotations["pv.kubernetes.io/provisioned-by"] == "namespaced-pv-controller" {
-			controllerutil.RemoveFinalizer(pv, "namespacedpv.homi.run/pvFinalizer")
+		if controllerutil.ContainsFinalizer(pv, finalizerName) && pv.Annotations["pv.kubernetes.io/provisioned-by"] == "namespaced-pv-controller" {
+			controllerutil.RemoveFinalizer(pv, finalizerName)
+			if err := r.Update(ctx, pv); err != nil {
+				logger.Error(err, "unable to update PersistentVolume")
+				return err
+			}
+
 			logger.Info("pv finalizer is removed")
 			namespacedPv := &namespacedpvv1.NamespacedPv{}
 			r.Get(ctx, client.ObjectKey{Namespace: pv.Labels["owner-namespace"], Name: pv.Labels["owner"]}, namespacedPv)
 
-			if err := r.Delete(ctx, namespacedPv); err != nil {
+			if namespacedPv.Annotations["namespacedpv.homi.run/recreate-pv-count"] == "" {
+				namespacedPv.Annotations["namespacedpv.homi.run/recreate-pv-count"] = "0"
+			}
+
+			recreateCount, _ := strconv.Atoi(namespacedPv.Annotations["nnamespacedpv.homi.run/recreate-pv-count"])
+			// FIXME: recreateCount is always 1
+			namespacedPv.Annotations["namespacedpv.homi.run/recreate-pv-count"] = strconv.Itoa(recreateCount + 1)
+			if err := r.Update(ctx, namespacedPv); err != nil {
 				logger.Error(err, "unable to update NamespacedPv")
 				return err
 			}
